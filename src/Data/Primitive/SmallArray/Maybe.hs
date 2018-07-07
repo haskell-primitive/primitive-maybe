@@ -6,10 +6,10 @@
 -- | This provides an interface to working with boxed arrays
 -- with elements of type @Maybe a@. That is:
 --
--- > MaybeArray a ≅ Array (Maybe a)
+-- > SmallMaybeArray a ≅ SmallArray (Maybe a)
 --
 -- However, this type provided by this module is more efficient
--- than its naive @Array@ counterpart. It consumes less
+-- than its naive @SmallArray@ counterpart. It consumes less
 -- memory and has fewer heap indirections.
 module Data.Primitive.SmallArray.Maybe
   ( SmallMaybeArray
@@ -70,7 +70,7 @@ writeSmallMaybeArray (SmallMutableMaybeArray marr) ix ma = case ma of
   Just a -> writeSmallArray marr ix (unsafeCoerce a)
   Nothing -> writeSmallArray marr ix nothingSurrogate
 
--- | This is like calling @sequence@ on an 'Array'. However, in
+-- | This is like calling @sequence@ on a 'SmallArray'. However, in
 -- the event that all the values are @Just@, it does not need
 -- to allocate a new array since the array backing the @SmallMaybeArray@
 -- can be reused.
