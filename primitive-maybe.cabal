@@ -1,7 +1,12 @@
 cabal-version: 2.0
 name: primitive-maybe
 version: 0.1.0
-description: Please see the README on GitHub at <https://github.com/andrewthad/primitive-maybe#readme>
+synopsis: Arrays of Maybes
+description:
+  This library provides types for working with arrays of @Maybe@
+  values. The types in this library can be used as replacements
+  for @Array (Maybe a)@ and @SmallArray (Maybe a)@ that consume
+  less memory and have fewer indirections.
 homepage: https://github.com/andrewthad/primitive-maybe#readme
 bug-reports: https://github.com/andrewthad/primitive-maybe/issues
 author: Andrew Martin
@@ -10,6 +15,7 @@ copyright: 2018 Andrew Martin
 license: BSD3
 license-file: LICENSE
 build-type: Simple
+category: Array
 extra-source-files: README.md
 
 source-repository head
