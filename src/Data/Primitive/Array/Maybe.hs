@@ -1,7 +1,10 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE RoleAnnotations #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE InstanceSigs #-}
 
 -- | This provides an interface to working with boxed arrays
 -- with elements of type @Maybe a@. That is:
@@ -22,11 +25,12 @@ module Data.Primitive.Array.Maybe
   , unsafeFreezeMaybeArray
   ) where
 
+import Control.Monad (when)
 import Control.Monad.Primitive
 import Data.Primitive.Array
 
-import Data.Primitive.Maybe.Internal (nothingSurrogate)
-import GHC.Exts (Any,reallyUnsafePtrEquality#)
+import Data.Primitive.Maybe.Internal
+import GHC.Exts (Any,reallyUnsafePtrEquality#, Int(..))
 import Unsafe.Coerce (unsafeCoerce)
 
 newtype MaybeArray a = MaybeArray (Array Any)
@@ -35,12 +39,51 @@ newtype MutableMaybeArray s a = MutableMaybeArray (MutableArray s Any)
 type role MaybeArray representational
 type role MutableMaybeArray nominal representational
 
-unsafeToMaybe :: Any -> Maybe a
-unsafeToMaybe a =
-  case reallyUnsafePtrEquality# a nothingSurrogate of
-    0# -> Just (unsafeCoerce a)
-    _  -> Nothing
-{-# INLINE unsafeToMaybe #-}
+instance Functor MaybeArray where
+  fmap :: forall a b. (a -> b) -> MaybeArray a -> MaybeArray b
+  fmap f (MaybeArray arr) = MaybeArray $
+    createArray (sizeofArray arr) (error "impossible") $ \mb ->
+      let go i | i == (sizeofArray arr) = return ()
+               | otherwise = do
+                   x <- indexArrayM arr i
+                   case (unsafeToMaybe x :: Maybe a) of
+                     Nothing -> writeArray mb i (toAny Nothing :: Any) >> go (i + 1)
+                     Just a -> writeArray mb i (toAny (Just (f a))) >> go (i + 1)
+      in go 0
+  e <$ (MaybeArray a) = MaybeArray $ createArray (sizeofArray a) (toAny e) (\ !_ -> pure ())
+
+instance Applicative MaybeArray where
+  pure :: a -> MaybeArray a
+  pure a = MaybeArray $ runArray $ newArray 1 (toAny a)
+  (<*>) :: MaybeArray (a -> b) -> MaybeArray a -> MaybeArray b
+  MaybeArray ab <*> MaybeArray a = MaybeArray $ createArray (szab * sza) (error "impossible") $ \mb ->
+    let go1 i = when (i < szab) $
+          do
+            f <- indexArrayM ab i
+            go2 (i * sza) f 0
+            go1 (i + 1)
+        go2 off f j = when (j < sza) $
+          do
+            x <- indexArrayM a j
+            let writeVal = toAny $ (anyToFunctor f :: Maybe a -> Maybe b) (unsafeToMaybe x) 
+            writeArray mb (off + j) writeVal
+            go2 off f (j + 1)
+    in go1 0
+      where szab = sizeofArray ab; sza = sizeofArray a
+  MaybeArray a *> MaybeArray b = MaybeArray $ createArray (sza * szb) (error "impossible") $ \mb ->
+    let go i | i < sza = copyArray mb (i * szb) b 0 szb
+             | otherwise = return ()
+    in go 0
+      where sza = sizeofArray a; szb = sizeofArray b
+  MaybeArray a <* MaybeArray b = MaybeArray $ createArray (sza*szb) (error "impossible") $ \ma ->
+    let fill off i e | i < szb   = writeArray ma (off+i) e >> fill off (i+1) e
+                     | otherwise = return ()
+        go i | i < sza
+             = do x <- indexArrayM a i
+                  fill (i*szb) 0 x >> go (i+1)
+             | otherwise = return ()
+     in go 0
+   where sza = sizeofArray a ; szb = sizeofArray b
 
 newMaybeArray :: PrimMonad m => Int -> Maybe a -> m (MutableMaybeArray (PrimState m) a)
 {-# INLINE newMaybeArray #-}
