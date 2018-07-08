@@ -21,6 +21,7 @@ module Data.Primitive.SmallArray.Maybe
   , sequenceSmallMaybeArray
   , unsafeFreezeSmallMaybeArray
   , thawSmallMaybeArray
+  , sizeofSmallMaybeArray
   ) where
 
 import Control.Monad.Primitive
@@ -103,3 +104,6 @@ thawSmallMaybeArray
   -> m (SmallMutableMaybeArray (PrimState m) a)
 thawSmallMaybeArray (SmallMaybeArray a) off len =
   fmap SmallMutableMaybeArray (thawSmallArray a off len)
+
+sizeofSmallMaybeArray :: SmallMaybeArray a -> Int
+sizeofSmallMaybeArray (SmallMaybeArray a) = sizeofSmallArray a
