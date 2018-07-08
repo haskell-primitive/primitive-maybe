@@ -25,6 +25,7 @@ module Data.Primitive.SmallArray.Maybe
   , thawSmallMaybeArray
   , smallMaybeArrayFromList
   , smallMaybeArrayFromListN
+  , sizeofSmallMaybeArray
   ) where
 
 import Control.Monad (when)
@@ -272,3 +273,6 @@ smallMaybeArrayFromListN n l = SmallMaybeArray $
 smallMaybeArrayFromList :: [a] -> SmallMaybeArray a
 smallMaybeArrayFromList l = smallMaybeArrayFromListN (length l) l
 
+sizeofSmallMaybeArray :: SmallMaybeArray a -> Int
+sizeofSmallMaybeArray (SmallMaybeArray a) = sizeofSmallArray a
+{-# INLINE sizeofSmallMaybeArray #-}

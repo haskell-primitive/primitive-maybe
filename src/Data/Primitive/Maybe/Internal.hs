@@ -27,8 +27,9 @@ nothingSurrogate = error "nothingSurrogate: This value should not be forced!"
 unsafeToMaybe :: Any -> Maybe a
 unsafeToMaybe a =
   case reallyUnsafePtrEquality# a nothingSurrogate of
+    1# -> Nothing
     0# -> Just (fromAny a)
-    _  -> Nothing
+    _  -> error "impossible"
 {-# INLINE unsafeToMaybe #-}
 
 toAny :: a -> Any

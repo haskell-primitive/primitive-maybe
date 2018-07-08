@@ -27,6 +27,7 @@ module Data.Primitive.Array.Maybe
   , thawMaybeArray
   , maybeArrayFromList
   , maybeArrayFromListN
+  , sizeofMaybeArray
   ) where
 
 import Control.Monad (when)
@@ -50,13 +51,14 @@ instance Functor MaybeArray where
   fmap :: forall a b. (a -> b) -> MaybeArray a -> MaybeArray b
   fmap f (MaybeArray arr) = MaybeArray $
     createArray (sizeofArray arr) (error "impossible") $ \mb ->
-      let go i | i == (sizeofArray arr) = return ()
-               | otherwise = do
-                   x <- indexArrayM arr i
-                   case (unsafeToMaybe x :: Maybe a) of
-                     Nothing -> writeArray mb i (toAny Nothing :: Any) >> go (i + 1)
-                     Just a -> writeArray mb i (toAny (Just (f a))) >> go (i + 1)
+      let go i
+            | i == (sizeofArray arr) = return ()
+            | otherwise = do
+                x <- indexArrayM arr i
+                let !val = fmap f (unsafeToMaybe x) :: Maybe b
+                writeArray mb i (toAny val) >> go (i + 1)
       in go 0
+  
   e <$ (MaybeArray a) = MaybeArray $ createArray (sizeofArray a) (toAny e) (\ !_ -> pure ())
 
 instance Applicative MaybeArray where
@@ -268,3 +270,6 @@ maybeArrayFromListN n l = MaybeArray $
 maybeArrayFromList :: [a] -> MaybeArray a
 maybeArrayFromList l = maybeArrayFromListN (length l) l
 
+sizeofMaybeArray :: MaybeArray a -> Int
+sizeofMaybeArray (MaybeArray a) = sizeofArray a
+{-# INLINE sizeofMaybeArray #-}
