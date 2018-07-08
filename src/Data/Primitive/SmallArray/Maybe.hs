@@ -20,6 +20,7 @@ module Data.Primitive.SmallArray.Maybe
   , writeSmallMaybeArray
   , sequenceSmallMaybeArray
   , unsafeFreezeSmallMaybeArray
+  , thawSmallMaybeArray
   ) where
 
 import Control.Monad.Primitive
@@ -93,3 +94,12 @@ unsafeFreezeSmallMaybeArray :: PrimMonad m => SmallMutableMaybeArray (PrimState 
 unsafeFreezeSmallMaybeArray (SmallMutableMaybeArray ma) = do
   a <- unsafeFreezeSmallArray ma
   return (SmallMaybeArray a)
+
+thawSmallMaybeArray
+  :: PrimMonad m
+  => SmallMaybeArray a -- ^ source
+  -> Int -- ^ offset
+  -> Int -- ^ length
+  -> m (SmallMutableMaybeArray (PrimState m) a)
+thawSmallMaybeArray (SmallMaybeArray a) off len =
+  fmap SmallMutableMaybeArray (thawSmallArray a off len)
