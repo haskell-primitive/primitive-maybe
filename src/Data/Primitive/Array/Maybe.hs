@@ -55,36 +55,36 @@ instance Functor MaybeArray where
             | i == (sizeofArray arr) = return ()
             | otherwise = do
                 x <- indexArrayM arr i
-                let !val = fmap f (unsafeToMaybe x) :: Maybe b
-                writeArray mb i (toAny val) >> go (i + 1)
+                case unsafeToMaybe x of
+                  Nothing -> pure () 
+                  Just val -> writeArray mb i (toAny (f val))
+                go (i + 1)
       in go 0
-  
   e <$ (MaybeArray a) = MaybeArray $ createArray (sizeofArray a) (toAny e) (\ !_ -> pure ())
 
 instance Applicative MaybeArray where
   pure :: a -> MaybeArray a
   pure a = MaybeArray $ runArray $ newArray 1 (toAny a)
   (<*>) :: MaybeArray (a -> b) -> MaybeArray a -> MaybeArray b
-  MaybeArray ab <*> MaybeArray a = MaybeArray $ createArray (szab * sza) (error "impossible") $ \mb ->
-    let go1 i = when (i < szab) $
-          do
-            f <- indexArrayM ab i
-            go2 (i * sza) f 0
-            go1 (i + 1)
-        go2 off f j = when (j < sza) $
-          do
-            x <- indexArrayM a j
-            let writeVal = toAny $ (anyToFunctor f :: Maybe a -> Maybe b) (unsafeToMaybe x) 
-            writeArray mb (off + j) writeVal
-            go2 off f (j + 1)
+  abm@(MaybeArray ab) <*> am@(MaybeArray a) = MaybeArray $ createArray (szab * sza) nothingSurrogate $ \mb ->
+    let go1 i = when (i < szab) $ do
+          case indexMaybeArray abm i of
+            Nothing -> pure ()
+            Just f -> go2 (i * sza) f 0
+          go1 (i + 1)
+        go2 off f j = when (j < sza) $ do
+          case indexMaybeArray am j of
+            Nothing -> pure ()
+            Just v -> writeArray mb (off + j) (toAny (f v))
+          go2 off f (j + 1)
     in go1 0
       where szab = sizeofArray ab; sza = sizeofArray a
-  MaybeArray a *> MaybeArray b = MaybeArray $ createArray (sza * szb) (error "impossible") $ \mb ->
+  MaybeArray a *> MaybeArray b = MaybeArray $ createArray (sza * szb) nothingSurrogate $ \mb ->
     let go i | i < sza = copyArray mb (i * szb) b 0 szb
              | otherwise = return ()
     in go 0
       where sza = sizeofArray a; szb = sizeofArray b
-  MaybeArray a <* MaybeArray b = MaybeArray $ createArray (sza*szb) (error "impossible") $ \ma ->
+  MaybeArray a <* MaybeArray b = MaybeArray $ createArray (sza*szb) nothingSurrogate $ \ma ->
     let fill off i e | i < szb   = writeArray ma (off+i) e >> fill off (i+1) e
                      | otherwise = return ()
         go i | i < sza

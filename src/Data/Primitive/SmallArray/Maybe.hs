@@ -52,13 +52,17 @@ infixl 1 ?
 {-# INLINE (?) #-}
 
 instance Functor SmallMaybeArray where
-  fmap f (SmallMaybeArray sa) = SmallMaybeArray $ createSmallArray (length sa) (error "impossible") $ \smb ->
-    fix ? 0 $ \go i ->
-      when (i < length sa) $ do
-        x <- indexSmallArrayM sa i
-        case (unsafeToMaybe x :: Maybe a) of
-          Nothing -> writeSmallArray smb i (toAny Nothing :: Any) >> go (i + 1)
-          Just a -> writeSmallArray smb i (toAny (Just (f a))) >> go (i + 1)
+  fmap f (SmallMaybeArray arr) = SmallMaybeArray $
+    createSmallArray (sizeofSmallArray arr) nothingSurrogate $ \mb ->
+      let go i
+            | i == (sizeofSmallArray arr) = return ()
+            | otherwise = do
+                x <- indexSmallArrayM arr i
+                case unsafeToMaybe x of
+                  Nothing -> pure () 
+                  Just val -> writeSmallArray mb i (toAny (f val))
+                go (i + 1)
+      in go 0
   {-# INLINE fmap #-}
   x <$ SmallMaybeArray sa = SmallMaybeArray $ createSmallArray (length sa) (toAny x) (\ !_ -> pure ())
 
@@ -82,20 +86,20 @@ instance Applicative SmallMaybeArray where
      in go 0
    where sza = sizeofSmallArray a ; szb = sizeofSmallArray b
   
-  SmallMaybeArray ab <*> SmallMaybeArray a = SmallMaybeArray $ createSmallArray (szab*sza) (error "impossible") $ \mb ->
-    let go1 i = when (i < szab) $
-            do
-              f <- indexSmallArrayM ab i
-              go2 (i*sza) f 0
-              go1 (i+1)
-        go2 off f j = when (j < sza) $
-            do
-              x <- indexSmallArrayM a j
-              let writeVal = toAny $ (anyToFunctor f :: Maybe a -> Maybe b) (unsafeToMaybe x)
-              writeSmallArray mb (off + j) writeVal
-              go2 off f (j + 1)
+  abm@(SmallMaybeArray ab) <*> am@(SmallMaybeArray a) = SmallMaybeArray $ createSmallArray (szab * sza) nothingSurrogate $ \mb ->
+    let go1 i = when (i < szab) $ do
+          case indexSmallMaybeArray abm i of
+            Nothing -> pure ()
+            Just f -> go2 (i * sza) f 0
+          go1 (i + 1)
+        go2 off f j = when (j < sza) $ do
+          case indexSmallMaybeArray am j of
+            Nothing -> pure ()
+            Just v -> writeSmallArray mb (off + j) (toAny (f v))
+          go2 off f (j + 1)
     in go1 0
-   where szab = sizeofSmallArray ab ; sza = sizeofSmallArray a
+      where szab = sizeofSmallArray ab; sza = sizeofSmallArray a
+
 newSmallMaybeArray :: PrimMonad m => Int -> Maybe a -> m (SmallMutableMaybeArray (PrimState m) a)
 {-# INLINE newSmallMaybeArray #-}
 newSmallMaybeArray i ma = case ma of
