@@ -97,6 +97,32 @@ instance Applicative MaybeArray where
      in go 0
    where sza = sizeofArray a ; szb = sizeofArray b
 
+data ArrayStack a
+  = PushArray !(Array a) !(ArrayStack a)
+  | EmptyStack
+
+instance Monad MaybeArray where
+  return = pure
+  (>>) = (*>)
+  (MaybeArray ary) >>= f = MaybeArray $ collect 0 EmptyStack (la - 1)
+    where
+      la = sizeofArray ary
+      collect sz stk i
+        | i < 0 = createArray sz nothingSurrogate $ fill 0 stk
+        | otherwise = let x = indexArray ary i
+                      in case unsafeToMaybe x of
+                        Nothing -> collect sz stk (i - 1)
+                        Just v -> let (MaybeArray sb) = f v
+                                      lsb = sizeofArray sb
+                                  in if lsb == 0
+                                       then collect sz stk (i - 1)
+                                       else collect (sz + lsb) (PushArray sb stk) (i - 1)
+      fill _ EmptyStack _ = return ()
+      fill off (PushArray sb sbs) smb
+        | let lsb = sizeofArray sb
+        = copyArray smb off sb 0 lsb
+            *> fill (off + lsb) sbs smb
+
 instance Foldable MaybeArray where
   -- Note: we perform the array lookups eagerly so we won't
   -- create thunks to perform lookups even if GHC can't see

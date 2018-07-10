@@ -102,6 +102,32 @@ instance Applicative SmallMaybeArray where
     in go1 0
       where szab = sizeofSmallArray ab; sza = sizeofSmallArray a
 
+data ArrayStack a
+  = PushArray !(SmallArray a) !(ArrayStack a)
+  | EmptyStack
+
+instance Monad SmallMaybeArray where
+  return = pure
+  (>>) = (*>)
+  (SmallMaybeArray ary) >>= f = SmallMaybeArray $ collect 0 EmptyStack (la - 1)
+    where
+      la = sizeofSmallArray ary
+      collect sz stk i
+        | i < 0 = createSmallArray sz nothingSurrogate $ fill 0 stk
+        | otherwise = let x = indexSmallArray ary i
+                      in case unsafeToMaybe x of
+                        Nothing -> collect sz stk (i - 1)
+                        Just v -> let (SmallMaybeArray sb) = f v
+                                      lsb = sizeofSmallArray sb
+                                  in if lsb == 0
+                                       then collect sz stk (i - 1)
+                                       else collect (sz + lsb) (PushArray sb stk) (i - 1)
+      fill _ EmptyStack _ = return ()
+      fill off (PushArray sb sbs) smb
+        | let lsb = sizeofSmallArray sb
+        = copySmallArray smb off sb 0 lsb
+            *> fill (off + lsb) sbs smb
+
 newSmallMaybeArray :: PrimMonad m => Int -> Maybe a -> m (SmallMutableMaybeArray (PrimState m) a)
 {-# INLINE newSmallMaybeArray #-}
 newSmallMaybeArray i ma = case ma of

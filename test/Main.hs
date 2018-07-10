@@ -43,7 +43,7 @@ main = do
     ]
 
 makeArrayLaws :: forall (f :: * -> *) a.
-     (Applicative f, Foldable f, Eq1 f, Ord1 f, Show1 f, Arbitrary1 f)
+     (Monad f, Foldable f, Eq1 f, Ord1 f, Show1 f, Arbitrary1 f)
   => (Read (f a), Show (Item (f a)), Monoid (f a), Ord (f a), Arbitrary (f a), Show (f a))
   => (IsList (f a), Show (Item (f a)), Arbitrary (Item (f a)))
   => Proxy f
@@ -57,6 +57,7 @@ makeArrayLaws pf pfa =
   , QCC.isListLaws pfa
   , QCC.functorLaws pf
   , QCC.applicativeLaws pf
+  , QCC.monadLaws pf 
   , QCC.foldableLaws pf
   ]
 
