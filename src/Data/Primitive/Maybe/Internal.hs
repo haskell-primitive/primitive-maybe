@@ -7,6 +7,8 @@ module Data.Primitive.Maybe.Internal
   , unsafeToMaybe 
   , toAny
   , fromAny
+  , toAny1
+  , fromAny1
   , anyToFunctor
   , functorToAny
 
@@ -36,6 +38,14 @@ unsafeToMaybe a =
 toAny :: a -> Any
 toAny = unsafeCoerce
 {-# INLINE toAny #-}
+
+toAny1 :: f a -> f Any
+toAny1 = unsafeCoerce
+{-# INLINE toAny1 #-}
+
+fromAny1 :: f Any -> f a
+fromAny1 = unsafeCoerce
+{-# INLINE fromAny1 #-}
 
 fromAny :: Any -> a
 fromAny = unsafeCoerce

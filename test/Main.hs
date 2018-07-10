@@ -24,6 +24,8 @@ import Data.Proxy (Proxy(..))
 import Data.Monoid ((<>))
 #endif
 
+import Control.Monad.Zip (MonadZip)
+import Control.Monad (MonadPlus)
 import Data.Primitive.Array.Maybe
 import Data.Primitive.SmallArray.Maybe
 import GHC.Exts (IsList(..))
@@ -43,7 +45,7 @@ main = do
     ]
 
 makeArrayLaws :: forall (f :: * -> *) a.
-     (Monad f, Foldable f, Eq1 f, Ord1 f, Show1 f, Arbitrary1 f)
+     (Monad f, MonadPlus f, MonadZip f, Foldable f, Eq1 f, Ord1 f, Show1 f, Arbitrary1 f)
   => (Read (f a), Show (Item (f a)), Monoid (f a), Ord (f a), Arbitrary (f a), Show (f a))
   => (IsList (f a), Show (Item (f a)), Arbitrary (Item (f a)))
   => Proxy f
@@ -56,9 +58,12 @@ makeArrayLaws pf pfa =
   , QCC.showReadLaws pfa
   , QCC.isListLaws pfa
   , QCC.functorLaws pf
+  , QCC.alternativeLaws pf
   , QCC.applicativeLaws pf
-  , QCC.monadLaws pf 
   , QCC.foldableLaws pf
+  , QCC.monadLaws pf 
+  , QCC.monadPlusLaws pf
+  , QCC.monadZipLaws pf
   ]
 
 maybeArrayLaws :: [QCC.Laws]

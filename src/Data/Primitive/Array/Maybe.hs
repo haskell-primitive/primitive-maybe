@@ -30,12 +30,18 @@ module Data.Primitive.Array.Maybe
   , sizeofMaybeArray
   ) where
 
-import Control.Monad (when)
+import Prelude hiding (zipWith)
+import Control.Applicative (Alternative(..))
+import Control.Monad (when, MonadPlus(..))
+import Control.Monad.Fail (MonadFail(..))
+import Control.Monad.ST (ST, runST)
+import Control.Monad.Zip (MonadZip(..))
 import Control.Monad.Primitive
 import Data.Primitive.Array
 import Data.Foldable hiding (toList)
 import Data.Functor.Classes
 import qualified Data.Foldable as Foldable
+import Data.Maybe (maybe)
 
 import Data.Data
   (Data(..), DataType, mkDataType, Constr, mkConstr, Fixity(..), constrIndex)
@@ -96,6 +102,63 @@ instance Applicative MaybeArray where
              | otherwise = return ()
      in go 0
    where sza = sizeofArray a ; szb = sizeofArray b
+
+instance Alternative MaybeArray where
+  empty = mempty
+  (<|>) = (<>)
+  some a | sizeofMaybeArray a == 0 = mempty
+         | otherwise = error "some: infinite arrays are not well defined"
+  many a | sizeofMaybeArray a == 0 = pure []
+         | otherwise = error "many: infinite arrays are not well defined"
+
+instance MonadPlus MaybeArray where
+  mzero = empty
+  mplus = (<|>)
+
+instance MonadFail MaybeArray where
+  fail _ = empty
+
+zipWith :: (a -> b -> c) -> MaybeArray a -> MaybeArray b -> MaybeArray c
+zipWith f (MaybeArray aa) (MaybeArray ab) = MaybeArray $
+  createArray mn nothingSurrogate $ \mc ->
+    let go i
+          | i < mn = do
+              x <- indexArrayM aa i
+              y <- indexArrayM ab i
+              let x' = unsafeToMaybe x
+                  y' = unsafeToMaybe y
+              case x' of
+                Nothing -> go (i + 1)
+                Just va -> case y' of
+                  Nothing -> go (i + 1)
+                  Just vb -> writeArray mc i (toAny $ f va vb) >> go (i + 1)
+          | otherwise = return ()
+    in go 0
+  where mn = sizeofArray aa `min` sizeofArray ab
+
+instance MonadZip MaybeArray where
+  mzip aa ab = zipWith (,) aa ab
+  mzipWith f aa ab = zipWith f aa ab
+  munzip :: forall a b. MaybeArray (a, b) -> (MaybeArray a, MaybeArray b) 
+  munzip (MaybeArray aab) = runST $ do
+    let sz = sizeofArray aab
+    ma_ <- newArray sz nothingSurrogate :: ST s (MutableArray s Any)
+    mb_ <- newArray sz nothingSurrogate :: ST s (MutableArray s Any)
+    let go :: forall s. Int -> MutableArray s Any -> MutableArray s Any -> ST s ()
+        go i ma mb = if i < sz
+          then do
+            tab <- indexArrayM aab i
+            let (a, b) = fromAny tab
+                a' = unsafeToMaybe a
+                b' = unsafeToMaybe b
+            maybe (pure ()) (writeArray ma i) a'
+            maybe (pure ()) (writeArray mb i) b'
+            go (i + 1) ma mb
+          else return ()
+    
+    go 0 ma_ mb_
+    (ma1, ma2) <- (,) <$> unsafeFreezeArray ma_ <*> unsafeFreezeArray mb_
+    return (unsafeCoerce ma1, unsafeCoerce ma2) :: ST s (MaybeArray a, MaybeArray b)
 
 data ArrayStack a
   = PushArray !(Array a) !(ArrayStack a)

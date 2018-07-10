@@ -4,6 +4,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE InstanceSigs #-}
 
 -- | This provides an interface to working with boxed arrays
 -- with elements of type @Maybe a@. That is:
@@ -28,13 +29,19 @@ module Data.Primitive.SmallArray.Maybe
   , sizeofSmallMaybeArray
   ) where
 
-import Control.Monad (when)
+import Prelude hiding (zipWith)
+import Control.Applicative (Alternative(..))
+import Control.Monad (when, MonadPlus(..))
+import Control.Monad.Fail (MonadFail(..))
+import Control.Monad.ST (ST, runST)
+import Control.Monad.Zip (MonadZip(..))
 import Control.Monad.Primitive
 import Data.Primitive.SmallArray
 import Data.Data (Data(..), DataType, mkDataType, Constr, mkConstr, Fixity(..), constrIndex)
 import Data.Function (fix)
 import Data.Functor.Classes
 import Data.Foldable hiding (toList)
+import Data.Maybe (maybe)
 import qualified Data.Foldable as Foldable
 
 import Data.Primitive.Maybe.Internal
@@ -127,6 +134,63 @@ instance Monad SmallMaybeArray where
         | let lsb = sizeofSmallArray sb
         = copySmallArray smb off sb 0 lsb
             *> fill (off + lsb) sbs smb
+
+instance Alternative SmallMaybeArray where
+  empty = mempty
+  (<|>) = (<>)
+  some a | sizeofSmallMaybeArray a == 0 = mempty
+         | otherwise = error "some: infinite arrays are not well defined"
+  many a | sizeofSmallMaybeArray a == 0 = pure []
+         | otherwise = error "many: infinite arrays are not well defined"
+
+instance MonadPlus SmallMaybeArray where
+  mzero = empty
+  mplus = (<|>)
+
+instance MonadFail SmallMaybeArray where
+  fail _ = empty
+
+zipWith :: (a -> b -> c) -> SmallMaybeArray a -> SmallMaybeArray b -> SmallMaybeArray c
+zipWith f (SmallMaybeArray aa) (SmallMaybeArray ab) = SmallMaybeArray $
+  createSmallArray mn nothingSurrogate $ \mc ->
+    let go i
+          | i < mn = do
+              x <- indexSmallArrayM aa i
+              y <- indexSmallArrayM ab i
+              let x' = unsafeToMaybe x
+                  y' = unsafeToMaybe y
+              case x' of
+                Nothing -> go (i + 1)
+                Just va -> case y' of
+                  Nothing -> go (i + 1)
+                  Just vb -> writeSmallArray mc i (toAny $ f va vb) >> go (i + 1)
+          | otherwise = return ()
+    in go 0
+  where mn = sizeofSmallArray aa `min` sizeofSmallArray ab
+
+instance MonadZip SmallMaybeArray where
+  mzip aa ab = zipWith (,) aa ab
+  mzipWith f aa ab = zipWith f aa ab
+  munzip :: forall a b. SmallMaybeArray (a, b) -> (SmallMaybeArray a, SmallMaybeArray b)
+  munzip (SmallMaybeArray aab) = runST $ do
+    let sz = sizeofSmallArray aab
+    ma_ <- newSmallArray sz nothingSurrogate :: ST s (SmallMutableArray s Any)
+    mb_ <- newSmallArray sz nothingSurrogate :: ST s (SmallMutableArray s Any)
+    let go :: forall s. Int -> SmallMutableArray s Any -> SmallMutableArray s Any -> ST s ()
+        go i ma mb = if i < sz
+          then do
+            tab <- indexSmallArrayM aab i
+            let (a, b) = fromAny tab
+                a' = unsafeToMaybe a
+                b' = unsafeToMaybe b
+            maybe (pure ()) (writeSmallArray ma i) a'
+            maybe (pure ()) (writeSmallArray mb i) b'
+            go (i + 1) ma mb
+          else return ()
+
+    go 0 ma_ mb_
+    (ma1, ma2) <- (,) <$> unsafeFreezeSmallArray ma_ <*> unsafeFreezeSmallArray mb_
+    return (unsafeCoerce ma1, unsafeCoerce ma2) :: ST s (SmallMaybeArray a, SmallMaybeArray b)
 
 newSmallMaybeArray :: PrimMonad m => Int -> Maybe a -> m (SmallMutableMaybeArray (PrimState m) a)
 {-# INLINE newSmallMaybeArray #-}
