@@ -31,7 +31,7 @@ module Data.Primitive.SmallArray.Maybe
   ) where
 
 import Prelude hiding (zipWith)
-import Control.Applicative (Alternative(..))
+import Control.Applicative (Alternative(..), liftA2)
 import Control.Monad (when, MonadPlus(..))
 import Control.Monad.Fail (MonadFail(..))
 import Control.Monad.ST (ST, runST)
@@ -47,7 +47,7 @@ import Data.Maybe (maybe)
 import qualified Data.Foldable as Foldable
 
 import Data.Primitive.Maybe.Internal
-import GHC.Exts (Any,reallyUnsafePtrEquality#, IsList(..))
+import GHC.Exts (Any,reallyUnsafePtrEquality#, IsList(..), SmallMutableArray#)
 import Text.ParserCombinators.ReadP
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -112,6 +112,43 @@ instance Applicative SmallMaybeArray where
           go2 off f (j + 1)
     in go1 0
       where szab = sizeofSmallArray ab; sza = sizeofSmallArray a
+
+instance Traversable SmallMaybeArray where
+  traverse = traverseSmallArray
+
+traverseSmallArray :: Applicative f
+  => (a -> f b)
+  -> SmallMaybeArray a
+  -> f (SmallMaybeArray b)
+traverseSmallArray f =  \ !(SmallMaybeArray ary) ->
+  let
+    !len = sizeofSmallArray ary
+    go !ix
+      | ix == len = pure $ STA $ \mary -> unsafeFreezeSmallArray (SmallMutableArray mary)
+      | otherwise = let x = indexSmallArray ary ix
+                    in case unsafeToMaybe x of
+                      Nothing -> go (ix + 1)
+                      Just v -> liftA2 (\b (STA m) -> STA $ \mary ->
+                                          writeSmallArray (SmallMutableArray mary) ix (toAny b) >> m mary)
+                                       (f v) (go (ix + 1))
+  in if len == 0
+       then pure mempty
+       else SmallMaybeArray <$> runSTA len <$> go 0
+
+newtype STA a = STA { _runSTA :: forall s. SmallMutableArray# s a -> ST s (SmallArray a) }
+
+runSTA :: Int -> STA a -> SmallArray a
+runSTA !sz = \(STA m) -> runST $ newArray_ sz >>= \ar -> m (msarray# ar)
+
+msarray# :: SmallMutableArray s a -> SmallMutableArray# s a
+msarray# (SmallMutableArray m) = m
+{-# INLINE msarray# #-}
+
+newArray_ :: Int -> ST s (SmallMutableArray s a)
+newArray_ !n = newSmallArray n badTraverseValue
+
+badTraverseValue :: a
+badTraverseValue = error "traverse: bad indexing"
 
 data ArrayStack a
   = PushArray !(SmallArray a) !(ArrayStack a)

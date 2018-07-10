@@ -45,7 +45,7 @@ main = do
     ]
 
 makeArrayLaws :: forall (f :: * -> *) a.
-     (Monad f, MonadPlus f, MonadZip f, Foldable f, Eq1 f, Ord1 f, Show1 f, Arbitrary1 f)
+     (Monad f, MonadPlus f, MonadZip f, Foldable f, Eq1 f, Ord1 f, Show1 f, Arbitrary1 f, Traversable f)
   => (Read (f a), Show (Item (f a)), Monoid (f a), Ord (f a), Arbitrary (f a), Show (f a))
   => (IsList (f a), Show (Item (f a)), Arbitrary (Item (f a)))
   => Proxy f
@@ -64,6 +64,7 @@ makeArrayLaws pf pfa =
   , QCC.monadLaws pf 
   , QCC.monadPlusLaws pf
   , QCC.monadZipLaws pf
+  , QCC.traversableLaws pf
   ]
 
 maybeArrayLaws :: [QCC.Laws]

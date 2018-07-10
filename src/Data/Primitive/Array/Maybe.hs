@@ -32,7 +32,7 @@ module Data.Primitive.Array.Maybe
   ) where
 
 import Prelude hiding (zipWith)
-import Control.Applicative (Alternative(..))
+import Control.Applicative (Alternative(..), liftA2)
 import Control.Monad (when, MonadPlus(..))
 import Control.Monad.Fail (MonadFail(..))
 import Control.Monad.ST (ST, runST)
@@ -48,7 +48,7 @@ import Data.Maybe (maybe)
 import Data.Data
   (Data(..), DataType, mkDataType, Constr, mkConstr, Fixity(..), constrIndex)
 import Data.Primitive.Maybe.Internal
-import GHC.Exts (Any,reallyUnsafePtrEquality#, Int(..), IsList(..))
+import GHC.Exts (Any,reallyUnsafePtrEquality#, Int(..), IsList(..), MutableArray#)
 import Text.ParserCombinators.ReadP
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -106,6 +106,39 @@ instance Applicative MaybeArray where
              | otherwise = return ()
      in go 0
    where sza = sizeofArray a ; szb = sizeofArray b
+
+instance Traversable MaybeArray where
+  traverse = traverseArray
+
+traverseArray :: Applicative f
+  => (a -> f b)
+  -> MaybeArray a
+  -> f (MaybeArray b)
+traverseArray f =  \ !(MaybeArray ary) ->
+  let
+    !len = sizeofArray ary
+    go !ix
+      | ix == len = pure $ STA $ \mary -> unsafeFreezeArray (MutableArray mary)
+      | otherwise = let x = indexArray ary ix
+                    in case unsafeToMaybe x of
+                      Nothing -> go (ix + 1)
+                      Just v -> liftA2 (\b (STA m) -> STA $ \mary ->
+                                          writeArray (MutableArray mary) ix (toAny b) >> m mary)
+                                       (f v) (go (ix + 1))
+  in if len == 0
+       then pure mempty
+       else MaybeArray <$> runSTA len <$> go 0
+
+newtype STA a = STA { _runSTA :: forall s. MutableArray# s a -> ST s (Array a) }
+
+runSTA :: Int -> STA a -> Array a
+runSTA !sz = \(STA m) -> runST $ newArray_ sz >>= \ar -> m (marray# ar)
+
+newArray_ :: Int -> ST s (MutableArray s a)
+newArray_ !n = newArray n badTraverseValue
+
+badTraverseValue :: a
+badTraverseValue = error "traverse: bad indexing"
 
 instance Alternative MaybeArray where
   empty = mempty
