@@ -37,8 +37,11 @@ import Data.Foldable hiding (toList)
 import Data.Functor.Classes
 import qualified Data.Foldable as Foldable
 
+import Data.Data
+  (Data(..), DataType, mkDataType, Constr, mkConstr, Fixity(..), constrIndex)
 import Data.Primitive.Maybe.Internal
 import GHC.Exts (Any,reallyUnsafePtrEquality#, Int(..), IsList(..))
+import Text.ParserCombinators.ReadP
 import Unsafe.Coerce (unsafeCoerce)
 
 newtype MaybeArray a = MaybeArray (Array Any)
@@ -128,6 +131,18 @@ instance Foldable MaybeArray where
   product = foldl' (*) 1
   {-# INLINE product #-}
 
+instance Semigroup (MaybeArray a) where
+  (<>) :: MaybeArray a -> MaybeArray a -> MaybeArray a
+  MaybeArray a1 <> MaybeArray a2 = MaybeArray $
+    createArray (sza1 + sza2) nothingSurrogate $ \ma ->
+      copyArray ma 0 a1 0 sza1 >> copyArray ma sza1 a2 0 sza2
+    where
+      sza1 = sizeofArray a1; sza2 = sizeofArray a2
+
+instance Monoid (MaybeArray a) where
+  mempty = MaybeArray emptyArray
+  mappend = (<>)
+
 instance IsList (MaybeArray a) where
   type Item (MaybeArray a) = a
   fromListN = maybeArrayFromListN
@@ -192,6 +207,35 @@ instance Show1 MaybeArray where
 
 instance Show a => Show (MaybeArray a) where
   showsPrec p sa = maybeArrayLiftShowsPrec showsPrec showList p sa
+
+maybeArrayLiftReadsPrec :: (Int -> ReadS a) -> ReadS [a] -> Int -> ReadS (MaybeArray a)
+maybeArrayLiftReadsPrec _ listReadsPrec p = readParen (p > 10) . readP_to_S $ do
+  () <$ string "fromListN"
+  skipSpaces
+  n <- readS_to_P reads
+  skipSpaces
+  l <- readS_to_P listReadsPrec
+  return $ maybeArrayFromListN n l
+
+instance Read1 MaybeArray where
+  liftReadsPrec = maybeArrayLiftReadsPrec
+
+instance Read a => Read (MaybeArray a) where
+  readsPrec = maybeArrayLiftReadsPrec readsPrec readList
+
+maybeArrayDataType :: DataType
+maybeArrayDataType = mkDataType "Data.Primitive.Array.Maybe.MaybeArray" [fromListConstr]
+
+fromListConstr :: Constr
+fromListConstr = mkConstr maybeArrayDataType "fromList" [] Prefix
+
+instance Data a => Data (MaybeArray a) where
+  toConstr _ = fromListConstr
+  dataTypeOf _ = maybeArrayDataType
+  gunfold k z c = case constrIndex c of
+    1 -> k (z fromList)
+    _ -> error "gunfold"
+  gfoldl f z m = z fromList `f` toList m
 
 newMaybeArray :: PrimMonad m => Int -> Maybe a -> m (MutableMaybeArray (PrimState m) a)
 {-# INLINE newMaybeArray #-}

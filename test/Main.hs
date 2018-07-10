@@ -8,7 +8,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE InstanceSigs #-}
 
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -Wall -fno-warn-orphans #-}
 
 #if __GLASGOW_HASKELL__ >= 805
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -18,34 +18,20 @@
 #endif
 
 import qualified Data.Foldable as Foldable
-import Control.Monad
-import Control.Monad.ST
 import Data.Primitive
-import Data.Word
 import Data.Proxy (Proxy(..))
-import GHC.Int
-import GHC.IO
-import Data.Function (on)
-import Control.Applicative (Const(..))
-import Data.Functor.Identity (Identity(..))
-import Data.Ord (Down(..))
-import Data.Semigroup (stimes)
 #if !(MIN_VERSION_base(4,11,0))
 import Data.Monoid ((<>))
 #endif
-import Foreign.Storable (Storable)
 
 import Data.Primitive.Array.Maybe
 import Data.Primitive.SmallArray.Maybe
 
 import Test.Tasty (defaultMain,testGroup,TestTree)
-import Test.QuickCheck (Arbitrary,Arbitrary1,Gen,(===),CoArbitrary,Function)
+import Test.QuickCheck (Arbitrary,Arbitrary1,Gen)
 import qualified Test.Tasty.QuickCheck as TQC
 import qualified Test.QuickCheck as QC
 import qualified Test.QuickCheck.Classes as QCC
-import qualified Test.QuickCheck.Classes.IsList as QCCL
-import qualified Data.List as L
-import qualified GHC.Exts as GHCExts
 
 main :: IO ()
 main = do
@@ -53,8 +39,8 @@ main = do
     [ testGroup "MaybeArray"
       [ lawsToTest (QCC.eqLaws (Proxy :: Proxy (MaybeArray Int)))
       , lawsToTest (QCC.ordLaws (Proxy :: Proxy (MaybeArray Int)))
-      --, lawsToTest (QCC.monoidLaws (Proxy :: Proxy (MaybeArray Int)))
-      --, lawsToTest (QCC.showReadLaws (Proxy :: Proxy (MaybeArray Int)))
+      , lawsToTest (QCC.monoidLaws (Proxy :: Proxy (MaybeArray Int)))
+      , lawsToTest (QCC.showReadLaws (Proxy :: Proxy (MaybeArray Int)))
       , lawsToTest (QCC.functorLaws (Proxy :: Proxy MaybeArray))
       , lawsToTest (QCC.applicativeLaws (Proxy :: Proxy MaybeArray))
       --, lawsToTest (QCC.monadLaws (Proxy :: Proxy MaybeArray))
@@ -65,8 +51,8 @@ main = do
     , testGroup "SmallMaybeArray"
       [ lawsToTest (QCC.eqLaws (Proxy :: Proxy (SmallMaybeArray Int)))
       , lawsToTest (QCC.ordLaws (Proxy :: Proxy (SmallMaybeArray Int)))
-      --, lawsToTest (QCC.monoidLaws (Proxy :: Proxy (SmallMaybeArray Int)))
-      --, lawsToTest (QCC.showReadLaws (Proxy :: Proxy (MaybeArray Int)))
+      , lawsToTest (QCC.monoidLaws (Proxy :: Proxy (SmallMaybeArray Int)))
+      , lawsToTest (QCC.showReadLaws (Proxy :: Proxy (MaybeArray Int)))
       , lawsToTest (QCC.functorLaws (Proxy :: Proxy SmallMaybeArray))
       , lawsToTest (QCC.applicativeLaws (Proxy :: Proxy SmallMaybeArray))
       --, lawsToTest (QCC.monadLaws (Proxy :: Proxy SmallMaybeArray))
@@ -75,12 +61,6 @@ main = do
       , lawsToTest (QCC.isListLaws (Proxy :: Proxy (SmallMaybeArray Int)))
       ]
     ]
-
-int16 :: Proxy Int16
-int16 = Proxy
-
-int32 :: Proxy Int32
-int32 = Proxy
 
 lawsToTest :: QCC.Laws -> TestTree
 lawsToTest (QCC.Laws name pairs) = testGroup name (map (uncurry TQC.testProperty) pairs)

@@ -31,6 +31,7 @@ module Data.Primitive.SmallArray.Maybe
 import Control.Monad (when)
 import Control.Monad.Primitive
 import Data.Primitive.SmallArray
+import Data.Data (Data(..), DataType, mkDataType, Constr, mkConstr, Fixity(..), constrIndex)
 import Data.Function (fix)
 import Data.Functor.Classes
 import Data.Foldable hiding (toList)
@@ -38,6 +39,7 @@ import qualified Data.Foldable as Foldable
 
 import Data.Primitive.Maybe.Internal
 import GHC.Exts (Any,reallyUnsafePtrEquality#, IsList(..))
+import Text.ParserCombinators.ReadP
 import Unsafe.Coerce (unsafeCoerce)
 
 newtype SmallMaybeArray a = SmallMaybeArray (SmallArray Any)
@@ -144,6 +146,17 @@ instance Foldable SmallMaybeArray where
   product = foldl' (*) 1
   {-# INLINE product #-}
 
+instance Semigroup (SmallMaybeArray a) where
+  SmallMaybeArray a1 <> SmallMaybeArray a2 = SmallMaybeArray $
+    createSmallArray (sza1 + sza2) nothingSurrogate $ \ma ->
+      copySmallArray ma 0 a1 0 sza1 >> copySmallArray ma sza1 a2 0 sza2
+    where
+      sza1 = sizeofSmallArray a1; sza2 = sizeofSmallArray a2
+
+instance Monoid (SmallMaybeArray a) where
+  mempty = SmallMaybeArray emptySmallArray
+  mappend = (<>)
+
 instance IsList (SmallMaybeArray a) where
   type Item (SmallMaybeArray a) = a
   fromListN = smallMaybeArrayFromListN
@@ -208,6 +221,35 @@ instance Show1 SmallMaybeArray where
 
 instance Show a => Show (SmallMaybeArray a) where
   showsPrec p sa = smallMaybeArrayLiftShowsPrec showsPrec showList p sa
+
+smallMaybeArrayLiftReadsPrec :: (Int -> ReadS a) -> ReadS [a] -> Int -> ReadS (SmallMaybeArray a)
+smallMaybeArrayLiftReadsPrec _ listReadsPrec p = readParen (p > 10) . readP_to_S $ do
+  () <$ string "fromListN"
+  skipSpaces
+  n <- readS_to_P reads
+  skipSpaces
+  l <- readS_to_P listReadsPrec
+  return $ smallMaybeArrayFromListN n l
+
+instance Read1 SmallMaybeArray where
+  liftReadsPrec = smallMaybeArrayLiftReadsPrec
+
+instance Read a => Read (SmallMaybeArray a) where
+  readsPrec = smallMaybeArrayLiftReadsPrec readsPrec readList
+
+smallMaybeArrayDataType :: DataType
+smallMaybeArrayDataType = mkDataType "Data.Primitive.Array.Maybe.SmallMaybeArray" [fromListConstr]
+
+fromListConstr :: Constr
+fromListConstr = mkConstr smallMaybeArrayDataType "fromList" [] Prefix
+
+instance Data a => Data (SmallMaybeArray a) where
+  toConstr _ = fromListConstr
+  dataTypeOf _ = smallMaybeArrayDataType
+  gunfold k z c = case constrIndex c of
+    1 -> k (z fromList)
+    _ -> error "gunfold"
+  gfoldl f z m = z fromList `f` toList m
 
 indexSmallMaybeArray :: SmallMaybeArray a -> Int -> Maybe a
 {-# INLINE indexSmallMaybeArray #-}

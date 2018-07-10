@@ -12,6 +12,8 @@ module Data.Primitive.Maybe.Internal
 
   , createArray
   , createSmallArray
+  , emptyArray
+  , emptySmallArray
   ) where
 
 import Data.Primitive.Array
