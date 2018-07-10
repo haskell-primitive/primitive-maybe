@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE Rank2Types #-}
@@ -38,6 +39,7 @@ import Control.Monad.ST (ST, runST)
 import Control.Monad.Zip (MonadZip(..))
 import Control.Monad.Primitive
 import Data.Primitive.Array
+import Data.Primitive.UnliftedArray (PrimUnlifted)
 import Data.Foldable hiding (toList)
 import Data.Functor.Classes
 import qualified Data.Foldable as Foldable
@@ -51,7 +53,9 @@ import Text.ParserCombinators.ReadP
 import Unsafe.Coerce (unsafeCoerce)
 
 newtype MaybeArray a = MaybeArray (Array Any)
+  deriving (PrimUnlifted)
 newtype MutableMaybeArray s a = MutableMaybeArray (MutableArray s Any)
+  deriving (PrimUnlifted)
 
 type role MaybeArray representational
 type role MutableMaybeArray nominal representational

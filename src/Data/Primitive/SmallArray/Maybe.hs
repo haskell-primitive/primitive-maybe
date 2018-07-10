@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE RankNTypes #-}
@@ -37,6 +38,7 @@ import Control.Monad.ST (ST, runST)
 import Control.Monad.Zip (MonadZip(..))
 import Control.Monad.Primitive
 import Data.Primitive.SmallArray
+import Data.Primitive.UnliftedArray (PrimUnlifted)
 import Data.Data (Data(..), DataType, mkDataType, Constr, mkConstr, Fixity(..), constrIndex)
 import Data.Function (fix)
 import Data.Functor.Classes
@@ -50,7 +52,9 @@ import Text.ParserCombinators.ReadP
 import Unsafe.Coerce (unsafeCoerce)
 
 newtype SmallMaybeArray a = SmallMaybeArray (SmallArray Any)
+  deriving (PrimUnlifted)
 newtype SmallMutableMaybeArray s a = SmallMutableMaybeArray (SmallMutableArray s Any)
+  deriving (PrimUnlifted)
 
 type role SmallMaybeArray representational
 type role SmallMutableMaybeArray nominal representational
