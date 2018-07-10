@@ -7,6 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 {-# OPTIONS_GHC -Wall -fno-warn-orphans #-}
 
@@ -18,7 +19,6 @@
 #endif
 
 import qualified Data.Foldable as Foldable
-import Data.Primitive
 import Data.Proxy (Proxy(..))
 #if !(MIN_VERSION_base(4,11,0))
 import Data.Monoid ((<>))
@@ -26,6 +26,8 @@ import Data.Monoid ((<>))
 
 import Data.Primitive.Array.Maybe
 import Data.Primitive.SmallArray.Maybe
+import GHC.Exts (IsList(..))
+import Data.Functor.Classes
 
 import Test.Tasty (defaultMain,testGroup,TestTree)
 import Test.QuickCheck (Arbitrary,Arbitrary1,Gen)
@@ -36,31 +38,45 @@ import qualified Test.QuickCheck.Classes as QCC
 main :: IO ()
 main = do
   defaultMain $ testGroup "properties"
-    [ testGroup "MaybeArray"
-      [ lawsToTest (QCC.eqLaws (Proxy :: Proxy (MaybeArray Int)))
-      , lawsToTest (QCC.ordLaws (Proxy :: Proxy (MaybeArray Int)))
-      , lawsToTest (QCC.monoidLaws (Proxy :: Proxy (MaybeArray Int)))
-      , lawsToTest (QCC.showReadLaws (Proxy :: Proxy (MaybeArray Int)))
-      , lawsToTest (QCC.functorLaws (Proxy :: Proxy MaybeArray))
-      , lawsToTest (QCC.applicativeLaws (Proxy :: Proxy MaybeArray))
-      --, lawsToTest (QCC.monadLaws (Proxy :: Proxy MaybeArray))
-      , lawsToTest (QCC.foldableLaws (Proxy :: Proxy MaybeArray))
-      --, lawsToTest (QCC.traversableLaws (Proxy :: Proxy MaybeArray))
-      , lawsToTest (QCC.isListLaws (Proxy :: Proxy (MaybeArray Int)))
-      ]
-    , testGroup "SmallMaybeArray"
-      [ lawsToTest (QCC.eqLaws (Proxy :: Proxy (SmallMaybeArray Int)))
-      , lawsToTest (QCC.ordLaws (Proxy :: Proxy (SmallMaybeArray Int)))
-      , lawsToTest (QCC.monoidLaws (Proxy :: Proxy (SmallMaybeArray Int)))
-      , lawsToTest (QCC.showReadLaws (Proxy :: Proxy (MaybeArray Int)))
-      , lawsToTest (QCC.functorLaws (Proxy :: Proxy SmallMaybeArray))
-      , lawsToTest (QCC.applicativeLaws (Proxy :: Proxy SmallMaybeArray))
-      --, lawsToTest (QCC.monadLaws (Proxy :: Proxy SmallMaybeArray))
-      , lawsToTest (QCC.foldableLaws (Proxy :: Proxy SmallMaybeArray))
-      --, lawsToTest (QCC.traversableLaws (Proxy :: Proxy SmallMaybeArray))
-      , lawsToTest (QCC.isListLaws (Proxy :: Proxy (SmallMaybeArray Int)))
-      ]
+    [ testGroup "MaybeArray" $ lawsToTest <$> maybeArrayLaws
+    , testGroup "SmallMaybeArray" $ lawsToTest <$> smallMaybeArrayLaws
     ]
+
+makeArrayLaws :: forall (f :: * -> *) a.
+     (Applicative f, Foldable f, Eq1 f, Ord1 f, Show1 f, Arbitrary1 f)
+  => (Read (f a), Show (Item (f a)), Monoid (f a), Ord (f a), Arbitrary (f a), Show (f a))
+  => (IsList (f a), Show (Item (f a)), Arbitrary (Item (f a)))
+  => Proxy f
+  -> Proxy (f a)
+  -> [QCC.Laws]
+makeArrayLaws pf pfa =
+  [ QCC.eqLaws pfa
+  , QCC.ordLaws pfa
+  , QCC.monoidLaws pfa
+  , QCC.showReadLaws pfa
+  , QCC.isListLaws pfa
+  , QCC.functorLaws pf
+  , QCC.applicativeLaws pf
+  , QCC.foldableLaws pf
+  ]
+
+maybeArrayLaws :: [QCC.Laws]
+maybeArrayLaws = makeArrayLaws proxyM1 proxyM
+
+smallMaybeArrayLaws :: [QCC.Laws]
+smallMaybeArrayLaws = makeArrayLaws proxyS1 proxyS
+
+proxyM :: Proxy (MaybeArray Int)
+proxyM = Proxy
+
+proxyM1 :: Proxy MaybeArray
+proxyM1 = Proxy
+
+proxyS :: Proxy (SmallMaybeArray Int)
+proxyS = Proxy
+
+proxyS1 :: Proxy SmallMaybeArray
+proxyS1 = Proxy
 
 lawsToTest :: QCC.Laws -> TestTree
 lawsToTest (QCC.Laws name pairs) = testGroup name (map (uncurry TQC.testProperty) pairs)
