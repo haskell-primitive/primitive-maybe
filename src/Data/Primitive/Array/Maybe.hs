@@ -405,8 +405,8 @@ hasNothing (MaybeArray a) = go 0 where
     then
       let (# v #) = indexArray## a ix
        in case reallyUnsafePtrEquality# v nothingSurrogate of
-            0# -> True
-            _  -> go (ix + 1)
+            0# -> go (ix + 1)
+            _ -> True
     else False
 
 unsafeFreezeMaybeArray :: PrimMonad m => MutableMaybeArray (PrimState m) a -> m (MaybeArray a)
