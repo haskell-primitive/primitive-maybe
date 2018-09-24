@@ -6,6 +6,7 @@
 {-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- | This provides an interface to working with boxed arrays
 -- with elements of type @Maybe a@. That is:
