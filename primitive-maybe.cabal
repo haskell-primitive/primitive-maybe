@@ -1,6 +1,6 @@
 cabal-version: 2.0
 name: primitive-maybe
-version: 0.1.0
+version: 0.1.1
 synopsis: Arrays of Maybes
 description:
   This library provides types for working with arrays of @Maybe@
