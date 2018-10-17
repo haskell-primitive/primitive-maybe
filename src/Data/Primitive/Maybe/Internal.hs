@@ -27,6 +27,7 @@ import Unsafe.Coerce (unsafeCoerce)
 nothingSurrogate :: Any
 nothingSurrogate = error "nothingSurrogate: This value should not be forced!"
 {-# NOINLINE nothingSurrogate #-}
+-- inlining this = fearful concurrency
 
 unsafeToMaybe :: Any -> Maybe a
 unsafeToMaybe a =

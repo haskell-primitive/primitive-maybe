@@ -52,8 +52,10 @@ import GHC.Exts (Any,reallyUnsafePtrEquality#, IsList(..), SmallMutableArray#)
 import Text.ParserCombinators.ReadP
 import Unsafe.Coerce (unsafeCoerce)
 
+-- | An immutable array of boxed values of type @'Maybe' a@.
 newtype SmallMaybeArray a = SmallMaybeArray (SmallArray Any)
   deriving (PrimUnlifted)
+-- | A mutable array of boxed values of type @'Maybe' a@.
 newtype SmallMutableMaybeArray s a = SmallMutableMaybeArray (SmallMutableArray s Any)
   deriving (PrimUnlifted)
 
@@ -234,6 +236,7 @@ instance MonadZip SmallMaybeArray where
     (ma1, ma2) <- (,) <$> unsafeFreezeSmallArray ma_ <*> unsafeFreezeSmallArray mb_
     return (unsafeCoerce ma1, unsafeCoerce ma2) :: ST s (SmallMaybeArray a, SmallMaybeArray b)
 
+-- | Create a new 'SmallMutableMaybeArray' of the given size and initialize all elements with the given 'Maybe' value.
 newSmallMaybeArray :: PrimMonad m => Int -> Maybe a -> m (SmallMutableMaybeArray (PrimState m) a)
 {-# INLINE newSmallMaybeArray #-}
 newSmallMaybeArray i ma = case ma of
@@ -383,18 +386,21 @@ instance Data a => Data (SmallMaybeArray a) where
     _ -> error "gunfold"
   gfoldl f z m = z fromList `f` toList m
 
+-- | Get the 'Maybe' value at the given index out of a 'SmallMaybeArray'.
 indexSmallMaybeArray :: SmallMaybeArray a -> Int -> Maybe a
 {-# INLINE indexSmallMaybeArray #-}
 indexSmallMaybeArray (SmallMaybeArray a) ix =
   let (# v #) = indexSmallArray## a ix
    in unsafeToMaybe v
 
+-- | Get the 'Maybe' value at the given index out of a 'SmallMutableMaybeArray'.
 readSmallMaybeArray :: PrimMonad m => SmallMutableMaybeArray (PrimState m) a -> Int -> m (Maybe a)
 {-# INLINE readSmallMaybeArray #-}
 readSmallMaybeArray (SmallMutableMaybeArray m) ix = do
   a <- readSmallArray m ix
   return (unsafeToMaybe a)
 
+-- | Write a 'Maybe' value to the given index of a 'SmallMutableMaybeArray'.
 writeSmallMaybeArray :: PrimMonad m => SmallMutableMaybeArray (PrimState m) a -> Int -> Maybe a -> m ()
 {-# INLINE writeSmallMaybeArray #-}
 writeSmallMaybeArray (SmallMutableMaybeArray marr) ix ma = case ma of
@@ -419,12 +425,16 @@ hasNothing (SmallMaybeArray a) = go 0 where
             _ -> True
     else False
 
+-- | Convert a 'SmallMutableMaybeArray' to an immutable one without copying.
+--   The array should not be modified after the conversion.
 unsafeFreezeSmallMaybeArray :: PrimMonad m => SmallMutableMaybeArray (PrimState m) a -> m (SmallMaybeArray a)
 {-# INLINE unsafeFreezeSmallMaybeArray #-}
 unsafeFreezeSmallMaybeArray (SmallMutableMaybeArray ma) = do
   a <- unsafeFreezeSmallArray ma
   return (SmallMaybeArray a)
 
+-- | Create a 'SmallMutableMaybeArray' from a slice of an immutable array. This operation makes a copy of
+--   the specified slice, so it is safe to use the immutable array afterward.
 thawSmallMaybeArray
   :: PrimMonad m
   => SmallMaybeArray a -- ^ source
@@ -434,6 +444,9 @@ thawSmallMaybeArray
 thawSmallMaybeArray (SmallMaybeArray a) off len =
   fmap SmallMutableMaybeArray (thawSmallArray a off len)
 
+-- | Given the length of the list and a list of @a@, build a 'SmallMaybeArray' from the values in the list.
+--   If the given 'Int' does not match the length of the list, this function calls 'error'. You should prefer
+--   this to 'maybeArrayFromList' if the length of the list has already been computed.
 smallMaybeArrayFromListN :: Int -> [a] -> SmallMaybeArray a
 smallMaybeArrayFromListN n l = SmallMaybeArray $
   createSmallArray n
@@ -448,9 +461,11 @@ smallMaybeArrayFromListN n l = SmallMaybeArray $
         else error "list length greater than specified size"
   in go 0 l
 
+-- | Given a list of @a@, build a 'SmallMaybeArray' from the values in the list.
 smallMaybeArrayFromList :: [a] -> SmallMaybeArray a
 smallMaybeArrayFromList l = smallMaybeArrayFromListN (length l) l
 
+-- | Yield the size of the 'SmallMaybeArray'.
 sizeofSmallMaybeArray :: SmallMaybeArray a -> Int
 sizeofSmallMaybeArray (SmallMaybeArray a) = sizeofSmallArray a
 {-# INLINE sizeofSmallMaybeArray #-}

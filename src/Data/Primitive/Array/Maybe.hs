@@ -53,8 +53,10 @@ import GHC.Exts (Any,reallyUnsafePtrEquality#, Int(..), IsList(..), MutableArray
 import Text.ParserCombinators.ReadP
 import Unsafe.Coerce (unsafeCoerce)
 
+-- | An immutable array of boxed values of type @'Maybe' a@.
 newtype MaybeArray a = MaybeArray (Array Any)
   deriving (PrimUnlifted)
+-- | A mutable array of boxed values of type @'Maybe' a@.
 newtype MutableMaybeArray s a = MutableMaybeArray (MutableArray s Any)
   deriving (PrimUnlifted)
 
@@ -364,6 +366,8 @@ instance Data a => Data (MaybeArray a) where
     _ -> error "gunfold"
   gfoldl f z m = z fromList `f` toList m
 
+-- | Create a new 'MutableMaybeArray' of the given size and initialize all elements
+--   with the given 'Maybe' value.
 newMaybeArray :: PrimMonad m => Int -> Maybe a -> m (MutableMaybeArray (PrimState m) a)
 {-# INLINE newMaybeArray #-}
 newMaybeArray i ma = case ma of
@@ -374,18 +378,21 @@ newMaybeArray i ma = case ma of
     x <- newArray i nothingSurrogate
     return (MutableMaybeArray x)
 
+-- | Get the 'Maybe' value at the given index out of a 'MaybeArray'.
 indexMaybeArray :: MaybeArray a -> Int -> Maybe a
 {-# INLINE indexMaybeArray #-}
 indexMaybeArray (MaybeArray a) ix =
   let (# v #) = indexArray## a ix
    in unsafeToMaybe v
 
+-- | Get the 'Maybe' value at the given index out of a 'MutableMaybeArray'.
 readMaybeArray :: PrimMonad m => MutableMaybeArray (PrimState m) a -> Int -> m (Maybe a)
 {-# INLINE readMaybeArray #-}
 readMaybeArray (MutableMaybeArray m) ix = do
   a <- readArray m ix
   return (unsafeToMaybe a)
 
+-- | Write a 'Maybe' value to the given index of a 'MutableMaybeArray'.
 writeMaybeArray :: PrimMonad m => MutableMaybeArray (PrimState m) a -> Int -> Maybe a -> m ()
 {-# INLINE writeMaybeArray #-}
 writeMaybeArray (MutableMaybeArray marr) ix ma = case ma of
@@ -400,6 +407,7 @@ sequenceMaybeArray :: MaybeArray a -> Maybe (Array a)
 sequenceMaybeArray m@(MaybeArray a) =
   if hasNothing m then Nothing else Just (unsafeCoerce a)
 
+-- | Returns @True@ if the 'MaybeArray' contains a @Nothing@ value.
 hasNothing :: MaybeArray a -> Bool
 hasNothing (MaybeArray a) = go 0 where
   go !ix = if ix < sizeofArray a
@@ -410,12 +418,17 @@ hasNothing (MaybeArray a) = go 0 where
             _ -> True
     else False
 
+-- | Convert a 'MutableMaybeArray' to an immutable one without copying.
+--   The array should not be modified after the conversion.
 unsafeFreezeMaybeArray :: PrimMonad m => MutableMaybeArray (PrimState m) a -> m (MaybeArray a)
 {-# INLINE unsafeFreezeMaybeArray #-}
 unsafeFreezeMaybeArray (MutableMaybeArray ma) = do
   a <- unsafeFreezeArray ma
   return (MaybeArray a)
 
+-- | Create a 'MutablePrimArray' from a slice of an immutable array.
+--   This operation makes a copy of the specified slice, so it is safe
+--   to use the immutable array afterward.
 thawMaybeArray
   :: PrimMonad m
   => MaybeArray a -- ^ source
@@ -425,6 +438,12 @@ thawMaybeArray
 thawMaybeArray (MaybeArray a) off len =
   fmap MutableMaybeArray (thawArray a off len)
 
+-- | Given the length of a list and a list of @a@,
+--   build a 'MaybeArray' from the values in the list.
+--   If the given 'Int' does not match the length of
+--   the list, this function calls 'error'.
+--   You should prefer this to 'maybeArrayFromList' if
+--   the length of the list has already been computed.
 maybeArrayFromListN :: Int -> [a] -> MaybeArray a
 maybeArrayFromListN n l = MaybeArray $
   createArray n (error "uninitialized element") $ \sma ->
@@ -438,9 +457,12 @@ maybeArrayFromListN n l = MaybeArray $
           else error "list length greater than specified size"
     in go 0 l
 
+-- | Given a list of @a@, build a 'MaybeArray' from
+--   the values in the list.
 maybeArrayFromList :: [a] -> MaybeArray a
 maybeArrayFromList l = maybeArrayFromListN (length l) l
 
+-- | Yield the size of the 'MaybeArray'.
 sizeofMaybeArray :: MaybeArray a -> Int
 sizeofMaybeArray (MaybeArray a) = sizeofArray a
 {-# INLINE sizeofMaybeArray #-}
