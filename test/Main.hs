@@ -15,6 +15,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE TypeInType #-}
 #endif
 
@@ -29,7 +30,10 @@ import Control.Monad (MonadPlus)
 import Data.Primitive.Array.Maybe
 import Data.Primitive.SmallArray.Maybe
 import GHC.Exts (IsList(..))
+
+#if __GLASGOW_HASKELL__ < 805
 import Data.Functor.Classes
+#endif
 
 import Test.Tasty (defaultMain,testGroup,TestTree)
 import Test.QuickCheck (Arbitrary,Arbitrary1,Gen)
@@ -45,9 +49,19 @@ main = do
     ]
 
 makeArrayLaws :: forall (f :: * -> *) a.
-     (Monad f, MonadPlus f, MonadZip f, Foldable f, Eq1 f, Ord1 f, Show1 f, Arbitrary1 f, Traversable f)
+#if __GLASGOW_HASKELL__ >= 805
+     ((forall a. Eq a => Eq (f a)), (forall a. Ord a => Ord (f a)))
+  => ((forall a. Show a => Show (f a)), (forall a. Arbitrary a => Arbitrary (f a)))
+  => ((forall a. IsList (f a)), Arbitrary (Item (f a)), Show (Item (f a)))
+  => ((forall a. Read a => Read (f a)))
+  => (Eq a, Arbitrary a, Show a, Ord a, Monoid (f a), Read (f a))
+  => (MonadPlus f, MonadZip f, Traversable f)
+#else
+     ((Eq1 f, Ord1 f, Show1 f, Arbitrary1 f))
+  => (MonadPlus f, MonadZip f, Traversable f)
   => (Read (f a), Show (Item (f a)), Monoid (f a), Ord (f a), Arbitrary (f a), Show (f a))
   => (IsList (f a), Show (Item (f a)), Arbitrary (Item (f a)))
+#endif
   => Proxy f
   -> Proxy (f a)
   -> [QCC.Laws]
