@@ -48,5 +48,5 @@ test-suite test
     , tasty
     , tasty-quickcheck
     , tagged
-    , quickcheck-classes >= 0.4.11.1
+    , quickcheck-classes >= 0.6.0.0
   default-language: Haskell2010
