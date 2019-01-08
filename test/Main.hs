@@ -69,7 +69,7 @@ makeArrayLaws pf pfa =
   [ QCC.eqLaws pfa
   , QCC.ordLaws pfa
   , QCC.monoidLaws pfa
-  , QCC.showReadLaws pfa
+--  , QCC.showReadLaws pfa
   , QCC.isListLaws pfa
   , QCC.functorLaws pf
   , QCC.alternativeLaws pf
