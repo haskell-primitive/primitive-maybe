@@ -39,7 +39,6 @@ import Control.Monad.ST (ST, runST)
 import Control.Monad.Zip (MonadZip(..))
 import Control.Monad.Primitive
 import Data.Primitive.SmallArray
-import Data.Primitive.UnliftedArray (PrimUnlifted)
 import Data.Data (Data(..), DataType, mkDataType, Constr, mkConstr, Fixity(..), constrIndex)
 import Data.Function (fix)
 import Data.Functor.Classes
@@ -54,10 +53,9 @@ import Unsafe.Coerce (unsafeCoerce)
 
 -- | An immutable array of boxed values of type @'Maybe' a@.
 newtype SmallMaybeArray a = SmallMaybeArray (SmallArray Any)
-  deriving (PrimUnlifted)
+
 -- | A mutable array of boxed values of type @'Maybe' a@.
 newtype SmallMutableMaybeArray s a = SmallMutableMaybeArray (SmallMutableArray s Any)
-  deriving (PrimUnlifted)
 
 type role SmallMaybeArray representational
 type role SmallMutableMaybeArray nominal representational
@@ -75,7 +73,7 @@ instance Functor SmallMaybeArray where
             | otherwise = do
                 x <- indexSmallArrayM arr i
                 case unsafeToMaybe x of
-                  Nothing -> pure () 
+                  Nothing -> pure ()
                   Just val -> writeSmallArray mb i (toAny (f val))
                 go (i + 1)
       in go 0
@@ -91,7 +89,7 @@ instance Applicative SmallMaybeArray where
         copySmallArray smb 0 sb 0 lb *> go (i+1)
    where
    la = length sa ; lb = length sb
-  
+
   SmallMaybeArray a <* SmallMaybeArray b = SmallMaybeArray $ createSmallArray (sza*szb) (error "impossible") $ \ma ->
     let fill off i e = when (i < szb) $
                          writeSmallArray ma (off+i) e >> fill off (i+1) e
@@ -101,7 +99,7 @@ instance Applicative SmallMaybeArray where
                  go (i+1)
      in go 0
    where sza = sizeofSmallArray a ; szb = sizeofSmallArray b
-  
+
   abm@(SmallMaybeArray ab) <*> am@(SmallMaybeArray a) = SmallMaybeArray $ createSmallArray (szab * sza) nothingSurrogate $ \mb ->
     let go1 i = when (i < szab) $ do
           case indexSmallMaybeArray abm i of
@@ -312,7 +310,7 @@ smallMaybeArrayLiftEq p (SmallMaybeArray sa1) (SmallMaybeArray sa2) = length sa1
                       Just x' -> case y of
                         Nothing -> False
                         Just y' -> p x' y' && loop (i - 1)
-                    
+
 instance Eq a => Eq (SmallMaybeArray a) where
   sma1 == sma2 = smallMaybeArrayLiftEq (==) sma1 sma2
 

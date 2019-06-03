@@ -40,7 +40,6 @@ import Control.Monad.ST (ST, runST)
 import Control.Monad.Zip (MonadZip(..))
 import Control.Monad.Primitive
 import Data.Primitive.Array
-import Data.Primitive.UnliftedArray (PrimUnlifted)
 import Data.Foldable hiding (toList)
 import Data.Functor.Classes
 import qualified Data.Foldable as Foldable
@@ -55,10 +54,9 @@ import Unsafe.Coerce (unsafeCoerce)
 
 -- | An immutable array of boxed values of type @'Maybe' a@.
 newtype MaybeArray a = MaybeArray (Array Any)
-  deriving (PrimUnlifted)
+
 -- | A mutable array of boxed values of type @'Maybe' a@.
 newtype MutableMaybeArray s a = MutableMaybeArray (MutableArray s Any)
-  deriving (PrimUnlifted)
 
 type role MaybeArray representational
 type role MutableMaybeArray nominal representational
@@ -72,7 +70,7 @@ instance Functor MaybeArray where
             | otherwise = do
                 x <- indexArrayM arr i
                 case unsafeToMaybe x of
-                  Nothing -> pure () 
+                  Nothing -> pure ()
                   Just val -> writeArray mb i (toAny (f val))
                 go (i + 1)
       in go 0
@@ -179,7 +177,7 @@ zipWith f (MaybeArray aa) (MaybeArray ab) = MaybeArray $
 instance MonadZip MaybeArray where
   mzip aa ab = zipWith (,) aa ab
   mzipWith f aa ab = zipWith f aa ab
-  munzip :: forall a b. MaybeArray (a, b) -> (MaybeArray a, MaybeArray b) 
+  munzip :: forall a b. MaybeArray (a, b) -> (MaybeArray a, MaybeArray b)
   munzip (MaybeArray aab) = runST $ do
     let sz = sizeofArray aab
     ma_ <- newArray sz nothingSurrogate :: ST s (MutableArray s Any)
@@ -195,7 +193,7 @@ instance MonadZip MaybeArray where
             maybe (pure ()) (writeArray mb i) b'
             go (i + 1) ma mb
           else return ()
-    
+
     go 0 ma_ mb_
     (ma1, ma2) <- (,) <$> unsafeFreezeArray ma_ <*> unsafeFreezeArray mb_
     return (unsafeCoerce ma1, unsafeCoerce ma2) :: ST s (MaybeArray a, MaybeArray b)
