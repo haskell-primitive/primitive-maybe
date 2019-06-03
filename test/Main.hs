@@ -75,7 +75,7 @@ makeArrayLaws pf pfa =
   , QCC.alternativeLaws pf
   , QCC.applicativeLaws pf
   , QCC.foldableLaws pf
-  , QCC.monadLaws pf 
+  , QCC.monadLaws pf
   , QCC.monadPlusLaws pf
   , QCC.monadZipLaws pf
   , QCC.traversableLaws pf
@@ -103,7 +103,7 @@ lawsToTest :: QCC.Laws -> TestTree
 lawsToTest (QCC.Laws name pairs) = testGroup name (map (uncurry TQC.testProperty) pairs)
 
 instance Arbitrary1 MaybeArray where
-  liftArbitrary :: forall a. Gen a -> Gen (MaybeArray a) 
+  liftArbitrary :: forall a. Gen a -> Gen (MaybeArray a)
   liftArbitrary elemGen = fmap fromList (QC.liftArbitrary elemGen :: Gen [a])
   liftShrink :: forall a. (a -> [a]) -> MaybeArray a -> [MaybeArray a]
   liftShrink shrf m = fmap maybeArrayFromList (fmap shrf (Foldable.toList m))
@@ -113,7 +113,7 @@ instance Arbitrary a => Arbitrary (MaybeArray a) where
   shrink = QC.shrink1
 
 instance Arbitrary1 SmallMaybeArray where
-  liftArbitrary :: forall a. Gen a -> Gen (SmallMaybeArray a) 
+  liftArbitrary :: forall a. Gen a -> Gen (SmallMaybeArray a)
   liftArbitrary elemGen = fmap fromList (QC.liftArbitrary elemGen :: Gen [a])
   liftShrink :: forall a. (a -> [a]) -> SmallMaybeArray a -> [SmallMaybeArray a]
   liftShrink shrf m = fmap smallMaybeArrayFromList (fmap shrf (Foldable.toList m))
